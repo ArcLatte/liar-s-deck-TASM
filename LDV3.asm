@@ -387,11 +387,15 @@ hand_not_empty:
     ; Normal AI challenge
     call ai_challenge
     cmp al, 1
-    jne turn_complete
+    jne no_challenge
+    ; If AI challenges
     call reveal_played_cards 
     call verify_player_claim
     call remove_selected_cards
+    jmp turn_complete
 
+no_challenge:
+    call remove_selected_cards
 turn_complete:
     pop di
     pop si
