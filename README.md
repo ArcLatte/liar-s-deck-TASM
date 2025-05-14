@@ -1,4 +1,4 @@
-# liar-s-deck-TASM
+# liar's-deck-TASM
 Liar's Deck game Turbo Assembly version
 
 Game Rule:
