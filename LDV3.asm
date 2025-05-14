@@ -88,6 +88,9 @@ round_turns:
     cmp ax, 1
     je game_round
     
+    cmp new_round_flag, 1
+    je skip_prompt
+    
     ; Continue round
     mov ah, 09h
     lea dx, msg_prompt
@@ -96,6 +99,10 @@ round_turns:
     int 21h
     
     jmp round_turns
+    
+skip_prompt:
+    mov new_round_flag, 0
+    jmp game_round
     
     mov ah, 4Ch
     int 21h
@@ -693,7 +700,7 @@ verify_player_claim proc
     push dx
     push si
     
-    mov al, 0  ; Default: no roulette triggered
+    mov new_round_flag, 0 ;reset new round flag
 
     ; --- Print table_type ---
     mov ah, 09h
@@ -778,6 +785,8 @@ resolve_ai_claim proc
     push cx
     push si
     
+    mov new_round_flag, 0 ;reset new round flag
+    
     ; Count AI's actual matching cards
     mov cx, 5
     mov si, 0
@@ -802,6 +811,7 @@ skip_count:
     lea dx, msg_ai_lied
     int 21h
     call trigger_roulette
+    mov new_round_flag, 1
     jmp resolve_done
     
 ai_truthful:
@@ -810,6 +820,7 @@ ai_truthful:
     lea dx, msg_player_lied
     int 21h
     call trigger_roulette
+    mov new_round_flag, 1
     
 resolve_done:
     pop si
