@@ -792,56 +792,53 @@ resolve_ai_claim proc
     push si
 
     mov new_round_flag, 0
+    xor bl, bl                ; bl = count of correct cards
     mov cx, 5
     mov si, 0
-    mov bl, 0  ; Assume AI is honest (0 = truthful, 1 = lied)
 
-check_each_card:
+count_played_matches:
     cmp [ai_played_cards + si], 255
-    je skip_check_card
-
+    je skip_played
     mov al, [ai_played_cards + si]
 
-    ; --- DEBUG PRINT ---
+    ; --- DEBUG PRINT: AI Played Card ---
     mov ah, 09h
-    lea dx, msg_debug_ai_card
+    lea dx, msg_debug_ai_card      ; Assume you define: msg_debug_ai_card db "AI Card: $"
     int 21h
+
     mov dl, al
-    add dl, '0'
+    add dl, '0'                    ; Convert number 0?3 to '0'?'3' ASCII
     mov ah, 02h
     int 21h
 
+    ; --- DEBUG PRINT: Expected Table Type ---
     mov ah, 09h
-    lea dx, msg_debug_table_type
+    lea dx, msg_debug_table_type   ; Define: msg_debug_table_type db " vs Table: $"
     int 21h
+
     mov dl, table_type
     add dl, '0'
     mov ah, 02h
     int 21h
 
+    ; Newline
     mov ah, 02h
     mov dl, 13
     int 21h
     mov dl, 10
     int 21h
-    ; -------------------
-
+    ;==================================
+    
     cmp al, table_type
-    jne set_lied
-skip_check_card:
+    jne skip_played
+    inc bl
+skip_played:
     inc si
-    loop check_each_card
-    jmp done_checking
+    loop count_played_matches
 
-set_lied:
-    mov bl, 1  ; AI lied
-    ; Still finish printing remaining cards for full debug
-    inc si
-    loop check_each_card
-
-done_checking:
-    cmp bl, 1
-    jne ai_truthful
+    ; Compare actual correct cards to claim
+    cmp bl, ai_claim_count
+    jae ai_truthful
 
     ; AI lied
     mov ah, 09h
@@ -852,7 +849,6 @@ done_checking:
     jmp resolve_done
 
 ai_truthful:
-    ; Player falsely accused
     mov ah, 09h
     lea dx, msg_player_lied
     int 21h
@@ -867,8 +863,6 @@ resolve_done:
     pop ax
     ret
 resolve_ai_claim endp
-
-
 
 save_ai_played_cards proc
     push ax

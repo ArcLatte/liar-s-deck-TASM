@@ -491,7 +491,7 @@ skip_ai_count:
     inc si
     loop count_ai_cards
 
-    ; Limit claim to actual hand size
+    ; Limit claim to how many it actually holds
     cmp ax, bx
     jbe keep_ax
     mov ax, bx
@@ -536,13 +536,16 @@ show_hidden:
     mov ah, 02h
     int 21h
 
-    ; === Check if AI will be empty after playing
+    ; === Early check: will AI be empty after this move?
     mov cx, 5
     mov si, 0
+    mov dl, ai_claim_count
     xor bl, bl
 check_empty_ahead:
     cmp [ai_hand + si], 255
-    je skip_check
+    jne count_card
+    jmp skip_check
+count_card:
     inc bl
 skip_check:
     inc si
@@ -552,44 +555,68 @@ skip_check:
     cmp bl, 0
     jne skip_force_challenge
 
-    ; === Force challenge if AI will be empty
-    call save_ai_played_cards
+    ; Force challenge if AI will be empty
+    mov ah, 09h
+    lea dx, msg_auto_challenge
+    int 21h
+    lea dx, msg_player_forced_challenge
+    int 21h
     call reveal_ai_cards
     call resolve_ai_claim
-    jmp ai_turn_complete
+    jmp after_challenge
 
 skip_force_challenge:
-    ; === Ask player to challenge
+    ; Prompt player to challenge
     call prompt_challenge
     cmp al, 0
-    je no_challenge_path
-
-    ; Player challenges
-    call save_ai_played_cards
+    je after_challenge
     call reveal_ai_cards
     call resolve_ai_claim
-    jmp ai_turn_complete
 
-no_challenge_path:
-    ; Player does NOT challenge ? just remove cards
-    ; Save played cards for consistency (optional)
-    call save_ai_played_cards
-
-    ; Remove claimed cards from ai_hand
-    mov cl, ai_claim_count
-    xor di, di
+after_challenge:
+    ; === Save played cards BEFORE reveal/resolve ===
     mov si, 0
-remove_ai_cards:
-    cmp cl, 0
-    je ai_turn_complete
-    cmp [ai_hand + si], 255
-    je skip_remove
-    mov [ai_hand + si], 255
-    dec cl
-skip_remove:
+    mov di, 0
+    mov cl, ai_claim_count
+
+    ; Clear previous played cards
+clear_played_loop:
+    mov [ai_played_cards + si], 255
     inc si
     cmp si, 5
-    jb remove_ai_cards
+    jb clear_played_loop
+
+    ; Fill ai_played_cards from ai_hand
+    mov si, 0
+    mov di, 0
+copy_and_remove_loop:
+    cmp cl, 0
+    je after_saving
+
+    cmp [ai_hand + si], 255
+    je skip_slot
+
+    mov al, [ai_hand + si]
+    mov [ai_played_cards + di], al
+    mov [ai_hand + si], 255
+
+    inc di
+    dec cl
+skip_slot:
+    inc si
+    cmp si, 5
+    jb copy_and_remove_loop
+
+after_saving:
+
+    ; Now challenge resolution
+    ; Only if challenge actually happened
+    cmp al, 0      ; AL was used in `prompt_challenge`
+    je skip_resolve
+    call reveal_ai_cards
+    call resolve_ai_claim
+skip_resolve:
+
 
 ai_turn_complete:
     pop di
@@ -600,7 +627,6 @@ ai_turn_complete:
     pop ax
     ret
 ai_turn endp
-
 
 
 
@@ -792,56 +818,53 @@ resolve_ai_claim proc
     push si
 
     mov new_round_flag, 0
+    xor bl, bl                ; bl = count of correct cards
     mov cx, 5
     mov si, 0
-    mov bl, 0  ; Assume AI is honest (0 = truthful, 1 = lied)
 
-check_each_card:
+count_played_matches:
     cmp [ai_played_cards + si], 255
-    je skip_check_card
-
+    je skip_played
     mov al, [ai_played_cards + si]
 
-    ; --- DEBUG PRINT ---
+    ; --- DEBUG PRINT: AI Played Card ---
     mov ah, 09h
-    lea dx, msg_debug_ai_card
+    lea dx, msg_debug_ai_card      ; Assume you define: msg_debug_ai_card db "AI Card: $"
     int 21h
+
     mov dl, al
-    add dl, '0'
+    add dl, '0'                    ; Convert number 0?3 to '0'?'3' ASCII
     mov ah, 02h
     int 21h
 
+    ; --- DEBUG PRINT: Expected Table Type ---
     mov ah, 09h
-    lea dx, msg_debug_table_type
+    lea dx, msg_debug_table_type   ; Define: msg_debug_table_type db " vs Table: $"
     int 21h
+
     mov dl, table_type
     add dl, '0'
     mov ah, 02h
     int 21h
 
+    ; Newline
     mov ah, 02h
     mov dl, 13
     int 21h
     mov dl, 10
     int 21h
-    ; -------------------
-
+    ;==================================
+    
     cmp al, table_type
-    jne set_lied
-skip_check_card:
+    jne skip_played
+    inc bl
+skip_played:
     inc si
-    loop check_each_card
-    jmp done_checking
+    loop count_played_matches
 
-set_lied:
-    mov bl, 1  ; AI lied
-    ; Still finish printing remaining cards for full debug
-    inc si
-    loop check_each_card
-
-done_checking:
-    cmp bl, 1
-    jne ai_truthful
+    ; Compare actual correct cards to claim
+    cmp bl, ai_claim_count
+    jae ai_truthful
 
     ; AI lied
     mov ah, 09h
@@ -852,7 +875,6 @@ done_checking:
     jmp resolve_done
 
 ai_truthful:
-    ; Player falsely accused
     mov ah, 09h
     lea dx, msg_player_lied
     int 21h
@@ -867,8 +889,6 @@ resolve_done:
     pop ax
     ret
 resolve_ai_claim endp
-
-
 
 save_ai_played_cards proc
     push ax
