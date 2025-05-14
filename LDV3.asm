@@ -51,6 +51,9 @@
     msg_click      db ' *CLICK*$'
     ai_hidden_card db '[?] $'
     
+    ;Flag
+    new_round_flag db 0
+    
     ;Debug only
     msg_table_type db 'Table type: ', '$'
     msg_selected_cards db 13, 10, 'Selected card values: ', '$'
@@ -364,15 +367,27 @@ skip_display:
     int 21h
 
     ; Check if player's hand is empty
+    ; Check if player's hand will be empty AFTER removing selected cards
     mov cx, 5
     mov si, 0
-check_empty:
-    cmp [player_hand + si], 255
-    jne hand_not_empty
-    inc si
-    loop check_empty
+    mov dx, 0              ; DX will count remaining cards
+check_would_be_empty:
+    mov al, [player_hand + si]
+    cmp al, 255
+    je next_check
+    cmp [selected_cards + si], 1
+    je next_check          ; Will be removed, skip counting
 
-    ; Player hand empty - force AI challenge
+    inc dx                 ; Still a valid unplayed card
+
+next_check:
+    inc si
+    loop check_would_be_empty
+
+    cmp dx, 0
+    jne hand_not_empty     ; If any unplayed card left, continue normal path
+
+    ; Player hand will be empty - force AI challenge
     mov ah, 09h
     lea dx, msg_auto_challenge
     int 21h
@@ -380,22 +395,31 @@ check_empty:
     int 21h
     call reveal_played_cards
     call verify_player_claim
+    cmp new_round_flag, 1
+    je jump_to_game_round
     call remove_selected_cards
     jmp turn_complete
-
+    
 hand_not_empty:
-    ; Normal AI challenge
     call ai_challenge
     cmp al, 1
     jne no_challenge
-    ; If AI challenges
+
+    ; AI challenged
     call reveal_played_cards 
     call verify_player_claim
+    cmp new_round_flag, 1
+    je jump_to_game_round
     call remove_selected_cards
     jmp turn_complete
 
 no_challenge:
+    ; AI did not challenge ? still remove selected cards
     call remove_selected_cards
+    jmp turn_complete
+jump_to_game_round:
+    mov new_round_flag, 0
+    jmp game_round
 turn_complete:
     pop di
     pop si
@@ -406,6 +430,7 @@ turn_complete:
     ret
 player_multi_turn endp
 
+;========Remove Cards=======
 remove_selected_cards proc
     push si
     mov si, 0
@@ -667,14 +692,16 @@ verify_player_claim proc
     push cx
     push dx
     push si
+    
+    mov al, 0  ; Default: no roulette triggered
 
     ; --- Print table_type ---
     mov ah, 09h
     lea dx, msg_table_type
     int 21h
-    mov al, table_type
-    add al, '0'
-    mov dl, al
+    mov bl, table_type
+    add bl, '0'
+    mov dl, bl
     mov ah, 02h
     int 21h
 
@@ -727,6 +754,7 @@ skip_verify:
     lea dx, msg_ai_lied
     int 21h
     call trigger_roulette  ; AI was wrong
+    mov new_round_flag, 1
     jmp verify_done
 
 player_lied:
@@ -734,7 +762,8 @@ player_lied:
     lea dx, msg_player_lied
     int 21h
     call trigger_roulette  ; Player was lying
-
+    mov new_round_flag, 1
+    
 verify_done:
     pop si
     pop dx
