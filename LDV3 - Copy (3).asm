@@ -54,16 +54,12 @@
     
     ;Flag
     new_round_flag db 0
-    challenge_flag db 0
-
     
     ;Debug only
     msg_table_type db 'Table type: ', '$'
     msg_selected_cards db 13, 10, 'Selected card values: ', '$'
     msg_debug_ai_card     db 'AI Card: $'
     msg_debug_table_type  db ' vs Table: $'
-    msg_debug_played_cards db "Saved AI Played Cards: $"
-
 
 
 
@@ -564,12 +560,12 @@ skip_check:
 
 skip_force_challenge:
     ; === Ask player to challenge
-    call save_ai_played_cards
     call prompt_challenge
-    cmp challenge_flag, 0
+    cmp al, 0
     je no_challenge_path
 
     ; Player challenges
+    call save_ai_played_cards
     call reveal_ai_cards
     call resolve_ai_claim
     jmp ai_turn_complete
@@ -604,6 +600,10 @@ ai_turn_complete:
     pop ax
     ret
 ai_turn endp
+
+
+
+
 
 ; === CARD REVEAL PROCEDURES ===
 reveal_played_cards proc
@@ -792,55 +792,62 @@ resolve_ai_claim proc
     push si
 
     mov new_round_flag, 0
-
-    ; === Setup ===
-    mov cl, ai_claim_count  ; Only check how many cards AI claimed
-    mov si, 0               ; Index into ai_played_cards
-    xor bx, bx              ; Mismatch counter
+    mov cx, 5
+    mov si, 0
 
 check_played_cards:
-    cmp cl, 0
-    je check_results        ; Done checking claimed cards
-
     cmp [ai_played_cards + si], 255
-    je skip_check_card      ; Skip empty slots
+    je next_card
 
-    ; Compare played card to table type
     mov al, [ai_played_cards + si]
-    cmp al, table_type
-    je card_matches
 
-    ; Card doesn't match - increment mismatch counter
-    inc bx
-    jmp skip_check_card
-
-card_matches:
-    ; Card matches - do nothing special
-    nop
-
-skip_check_card:
-    inc si
-    dec cl
-    jmp check_played_cards
-
-check_results:
-    ; If any mismatches found (bx > 0), AI lied
-    cmp bx, 0
-    jne ai_lied
-
-ai_truthful:
-    ; All claimed cards matched
+    ; DEBUG
     mov ah, 09h
-    lea dx, msg_player_lied
+    lea dx, msg_debug_ai_card
+    int 21h
+
+    mov dl, al
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+
+    mov ah, 09h
+    lea dx, msg_debug_table_type
+    int 21h
+
+    mov dl, table_type
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+
+    mov ah, 02h
+    mov dl, 13
+    int 21h
+    mov dl, 10
+    int 21h
+
+    ; Compare
+    cmp al, table_type
+    jne ai_lied   ; IMMEDIATELY FAIL if even 1 doesn't match
+
+next_card:
+    inc si
+    loop check_played_cards
+
+    ; All cards matched
+    jmp ai_truthful
+
+ai_lied:
+    mov ah, 09h
+    lea dx, msg_ai_lied
     int 21h
     call trigger_roulette
     mov new_round_flag, 1
     jmp resolve_done
 
-ai_lied:
-    ; At least one claimed card didn't match
+ai_truthful:
     mov ah, 09h
-    lea dx, msg_ai_lied
+    lea dx, msg_player_lied
     int 21h
     call trigger_roulette
     mov new_round_flag, 1
@@ -877,8 +884,11 @@ clear_loop:
     xor di, di
     mov bl, ai_claim_count
 copy_loop:
-    cmp di, bx         ; use bx instead of ax
-    je after_copy_loop
+    mov al, bl   ; copy 8-bit value to AL
+    xor ah, ah   ; zero AH to make AX = BL
+    cmp di, ax   ; now both operands are 16-bit
+
+    je done_copy
     cmp [ai_hand + si], 255
     je skip_copy
     mov al, [ai_hand + si]
@@ -889,42 +899,6 @@ skip_copy:
     cmp si, 5
     jb copy_loop
 
-after_copy_loop:
-    ; === DEBUG: Print saved played cards ===
-    mov ah, 09h
-    lea dx, msg_debug_played_cards  ; db "Saved AI Played Cards: $" in .data
-    int 21h
-
-    mov si, 0
-debug_loop:
-    cmp si, 5
-    je debug_done
-    mov al, [ai_played_cards + si]
-    cmp al, 255
-    je skip_debug
-
-    ; Convert to ASCII and print
-    add al, '0'
-    mov dl, al
-    mov ah, 02h
-    int 21h
-
-    ; Add space
-    mov dl, ' '
-    int 21h
-
-skip_debug:
-    inc si
-    jmp debug_loop
-
-debug_done:
-    ; Newline
-    mov ah, 02h
-    mov dl, 13
-    int 21h
-    mov dl, 10
-    int 21h
-
 done_copy:
     pop di
     pop si
@@ -934,7 +908,6 @@ done_copy:
     pop ax
     ret
 save_ai_played_cards endp
-
 
 
 ; === RUSSIAN ROULETTE ===
@@ -1129,11 +1102,11 @@ challenge_input:
     jmp challenge_input
     
 player_challenge_yes:
-    mov challenge_flag, 1      ; Return 1 = challenge
+    mov al, 1       ; Return 1 = challenge
     jmp prompt_challenge_end
     
 player_challenge_no:
-    mov challenge_flag, 0     ; Return 0 = no challenge
+    xor al, al      ; Return 0 = no challenge
     
 prompt_challenge_end:  ; Changed from challenge_done
     pop dx
