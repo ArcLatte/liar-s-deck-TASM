@@ -17,6 +17,13 @@
     empty_slot    db 255
     roulette_counter db 0
     ai_claim_count db ?
+    
+    ; Russian Roulette 
+    player_roulette_counter db 0
+    ai_roulette_counter     db 0
+    player_bullet_position  db ?
+    ai_bullet_position      db ?
+    roulette_chamber_size   equ 6
 
     ; Strings
     kings_str     db 'Kings $'
@@ -51,6 +58,7 @@
     msg_bang       db ' BANG! Game over.$'
     msg_click      db ' *CLICK*$'
     ai_hidden_card db '[?] $'
+    msg_player_wins db ' You win! AI lost the Russian Roulette.$'
     
     ;Flag
     new_round_flag db 0
@@ -72,6 +80,7 @@ main proc
     mov ax, @data
     mov ds, ax
     
+    call init_roulette
 game_round:
     call clear_screen
     call select_table_type
@@ -764,7 +773,7 @@ skip_verify:
     mov ah, 09h
     lea dx, msg_ai_lied
     int 21h
-    call trigger_roulette  ; AI was wrong
+    call ai_roulette  ; AI was wrong
     mov new_round_flag, 1
     jmp verify_done
 
@@ -772,7 +781,7 @@ player_lied:
     mov ah, 09h
     lea dx, msg_player_lied
     int 21h
-    call trigger_roulette  ; Player was lying
+    call player_roulette  ; Player was lying
     mov new_round_flag, 1
     
 verify_done:
@@ -833,7 +842,7 @@ ai_truthful:
     mov ah, 09h
     lea dx, msg_player_lied
     int 21h
-    call trigger_roulette
+    call player_roulette
     mov new_round_flag, 1
     jmp resolve_done
 
@@ -842,7 +851,7 @@ ai_lied:
     mov ah, 09h
     lea dx, msg_ai_lied
     int 21h
-    call trigger_roulette
+    call ai_roulette
     mov new_round_flag, 1
 
 resolve_done:
@@ -937,39 +946,66 @@ save_ai_played_cards endp
 
 
 
-; === RUSSIAN ROULETTE ===
-trigger_roulette proc
+; ======= RUSSIAN ROULETTE SECTION =======
+
+; ----- Initialize Russian Roulette -----
+init_roulette proc
     push ax
     push dx
     
-    inc roulette_counter
+    ; Set random bullet position for player (1-6)
+    call random_number
+    xor dx, dx
+    mov dl, roulette_chamber_size
+    div dl
+    inc ah                  ; Remainder +1 (1-6)
+    mov player_bullet_position, ah
+    
+    ; Set random bullet position for AI (1-6)
+    call random_number
+    xor dx, dx
+    mov dl, roulette_chamber_size
+    div dl
+    inc ah                  ; Remainder +1 (1-6)
+    mov ai_bullet_position, ah
+    
+    ; Reset counters
+    mov player_roulette_counter, 0
+    mov ai_roulette_counter, 0
+    
+    pop dx
+    pop ax
+    ret
+init_roulette endp
+
+; === Player Russian Roulette ===
+player_roulette proc
+    push ax
+    push dx
+    
+    inc player_roulette_counter
     
     ; Show attempt number
     mov ah, 09h
     lea dx, msg_roulette
     int 21h
-    mov dl, roulette_counter
+    mov dl, player_roulette_counter
     add dl, '0'
     mov ah, 02h
     int 21h
     
-    ; 6th attempt always kills
-    cmp roulette_counter, 6
-    je death
-    
-    ; 1 in 6 chance
-    call random_number
-    and ax, 7
-    cmp ax, 1
-    jle death
+    ; Check if this is the bullet position
+    mov al, player_roulette_counter
+    cmp al, player_bullet_position
+    je player_death
     
     ; Survived
     mov ah, 09h
     lea dx, msg_click
     int 21h
-    jmp roulette_done
+    jmp player_roulette_done
     
-death:
+player_death:
     mov ah, 09h
     lea dx, msg_bang
     int 21h
@@ -977,7 +1013,7 @@ death:
     mov ah, 4Ch
     int 21h
     
-roulette_done:
+player_roulette_done:
     ; Pause so player can read
     mov ah, 09h
     lea dx, msg_prompt
@@ -988,7 +1024,60 @@ roulette_done:
     pop dx
     pop ax
     ret
-trigger_roulette endp
+player_roulette endp
+
+; === AI Russian Roulette ===
+ai_roulette proc
+    push ax
+    push dx
+    
+    inc ai_roulette_counter
+    
+    ; Show attempt number
+    mov ah, 09h
+    lea dx, msg_roulette
+    int 21h
+    mov dl, ai_roulette_counter
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+    
+    ; Check if this is the bullet position
+    mov al, ai_roulette_counter
+    cmp al, ai_bullet_position
+    je ai_death
+    
+    ; Survived
+    mov ah, 09h
+    lea dx, msg_click
+    int 21h
+    jmp ai_roulette_done
+    
+ai_death:
+    mov ah, 09h
+    lea dx, msg_bang
+    int 21h
+    ; Game over - AI loses
+    mov ah, 09h
+    lea dx, msg_player_wins
+    int 21h
+    mov ah, 4Ch
+    int 21h
+    
+ai_roulette_done:
+    ; Pause so player can read
+    mov ah, 09h
+    lea dx, msg_prompt
+    int 21h
+    mov ah, 01h
+    int 21h
+    
+    pop dx
+    pop ax
+    ret
+ai_roulette endp
+; ======= RUSSIAN ROULETTE SECTION =======
+
 
 ; === UTILITY FUNCTIONS ===
 random_number proc
