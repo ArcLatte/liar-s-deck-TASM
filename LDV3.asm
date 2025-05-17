@@ -60,6 +60,11 @@
     ai_hidden_card db '[?] $'
     msg_player_wins db ' You win! AI lost the Russian Roulette.$'
     
+    msg_player_roulette_count db 13, 10, 'Player (', '$'
+    msg_ai_roulette_count     db 'AI     (', '$'
+    msg_of_six_closing        db '/6)', 13, 10, '$'
+
+    
     ;Flag
     new_round_flag db 0
     challenge_flag db 0
@@ -71,6 +76,10 @@
     msg_debug_ai_card     db 'AI Card: $'
     msg_debug_table_type  db ' vs Table: $'
     msg_debug_played_cards db "Saved AI Played Cards: $"
+    msg_start db 'Game starting...', 13, 10, '$'
+    msg_init_done db 'Roulette initialized!', 13, 10, '$'
+    debug_roulette_entered db '>>> Entered show_roulette_status <<<', 13, 10, '$'
+
 
 
 
@@ -80,7 +89,9 @@ main proc
     mov ax, @data
     mov ds, ax
     
+    
     call init_roulette
+    
 game_round:
     call clear_screen
     call select_table_type
@@ -89,7 +100,17 @@ game_round:
     call deal_cards
     
 round_turns:
+    mov ax, @data
+    mov ds, ax
     call clear_screen
+    ; debuging......
+    mov ah, 09h
+    lea dx, msg_welcome
+    int 21h
+    call show_roulette_status
+        
+    
+    ; debuging ends...
     call show_table_type
     call display_hands
     
@@ -125,7 +146,7 @@ skip_prompt:
     int 21h
 main endp
 
-; === GAME PROCEDURES === 
+;====== Game Setup Procedures ======
 select_table_type proc
     push ax
     push dx
@@ -147,6 +168,7 @@ select_table_type proc
     ret
 select_table_type endp
 
+;------ Print Table Type(King, Queen, Ace)------
 show_table_type proc
     push ax
     push dx
@@ -182,7 +204,7 @@ display_type:
     ret
 show_table_type endp
 
-
+;------ Deck Shuffling Procedure ------
 enhanced_shuffle proc
     push ax
     push bx
@@ -233,6 +255,7 @@ shuffle_loop:
     ret
 enhanced_shuffle endp
 
+;------ Card Dealing Procedure ------
 deal_cards proc
     push ax
     push cx
@@ -264,6 +287,7 @@ deal_ai:
     pop ax
     ret
 deal_cards endp
+;====== Game Setup Procedures END ======
 
 
 ; === UPDATED PLAYER TURN ===
@@ -275,9 +299,9 @@ player_multi_turn proc
     push si
     push di
 
-    call clear_screen
-    call show_table_type
-    call display_hands
+    ;call clear_screen
+    ;call show_table_type
+    ;call display_hands
 
     ; Clear previous selections
     mov cx, 5
@@ -946,34 +970,33 @@ save_ai_played_cards endp
 
 
 
-; ======= RUSSIAN ROULETTE SECTION =======
+; ======= RUSSIAN ROULETTE Procedures =======
 
 ; ----- Initialize Russian Roulette -----
 init_roulette proc
     push ax
+    push bx
     push dx
     
-    ; Set random bullet position for player (1-6)
-    call random_number
-    xor dx, dx
-    mov dl, roulette_chamber_size
-    div dl
-    inc ah                  ; Remainder +1 (1-6)
-    mov player_bullet_position, ah
-    
-    ; Set random bullet position for AI (1-6)
-    call random_number
-    xor dx, dx
-    mov dl, roulette_chamber_size
-    div dl
-    inc ah                  ; Remainder +1 (1-6)
-    mov ai_bullet_position, ah
+    ; Player bullet
+    call random_number       ; returns a new AX value (from system time)
+    and ax, 5
+    inc al
+    mov player_bullet_position, al
+
+    ; AI bullet
+    call random_number       ; called again ? returns a different AX (next tick)
+    and ax, 5
+    inc al
+    mov ai_bullet_position, al
+
     
     ; Reset counters
     mov player_roulette_counter, 0
     mov ai_roulette_counter, 0
     
     pop dx
+    pop bx
     pop ax
     ret
 init_roulette endp
@@ -1076,7 +1099,44 @@ ai_roulette_done:
     pop ax
     ret
 ai_roulette endp
-; ======= RUSSIAN ROULETTE SECTION =======
+
+
+
+show_roulette_status proc
+    push ax
+    push dx
+
+    ; Player (X/6)
+    mov ah, 09h
+    lea dx, msg_player_roulette_count
+    int 21h
+    mov dl, player_roulette_counter
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+    lea dx, msg_of_six_closing
+    mov ah, 09h
+    int 21h
+
+    ; AI     (Y/6)
+    mov ah, 09h
+    lea dx, msg_ai_roulette_count
+    int 21h
+    mov dl, ai_roulette_counter
+    add dl, '0'
+    mov ah, 02h
+    int 21h
+    lea dx, msg_of_six_closing
+    mov ah, 09h
+    int 21h
+
+    pop dx
+    pop ax
+    ret
+show_roulette_status endp
+
+
+; ==========================================
 
 
 ; === UTILITY FUNCTIONS ===
@@ -1266,5 +1326,6 @@ hands_done:
     pop cx
     ret
 check_hands_empty endp
+
 
 end main
