@@ -67,6 +67,8 @@
     msg_player_roulette_count db 13, 10, 'Player (', '$'
     msg_ai_roulette_count     db 'Giorno (', '$'
     msg_of_six_closing        db '/6)', 13, 10, '$'
+    
+    reveal_buffer db 80 dup('$')        ; Display buffer
 
     
     ;Flag
@@ -655,94 +657,131 @@ ai_turn endp
 
 ; === CARD REVEAL PROCEDURES ===
 reveal_played_cards proc
-    push ax
-    push bx
-    push dx
-    push si
-    
+    push ax bx cx dx si di
+
     mov ah, 09h
     lea dx, msg_truth_reveal
     int 21h
-    
+
+    xor si, si
+    xor di, di
     mov bx, offset card_symbols
-    mov si, 0
-show_played:
-    cmp [selected_cards + si], 1  ; Check if card was played
-    jne skip_show
-    
-    mov al, [player_hand + si]    ; Get card value (0-3)
-    cmp al, 255                   ; Skip if empty slot
-    je skip_show
-    
-    xlat                          ; AL = [BX + AL] (convert to symbol)
-    mov [card_template + 1], al   ; Update display template
-    
-    push dx
-    lea dx, card_template
-    mov ah, 09h
-    int 21h
-    pop dx
-    
-skip_show:
-    inc si
+
+player_next_card:
     cmp si, 5
-    jb show_played
-    
-    pop si
-    pop dx
-    pop bx
-    pop ax
+    jae player_reveal_done
+
+    cmp [selected_cards + si], 1
+    jne player_skip_card
+
+    mov al, [player_hand + si]
+    xlat
+    mov [card_template + 1], al
+
+    lea dx, card_template
+    mov cx, 0
+copy_card_player:
+    mov bx, cx
+    mov al, [si + bx]
+    mov [reveal_buffer + di], al
+    inc cx
+    inc di
+    cmp al, '$'
+    jne copy_card_player
+
+    mov byte ptr [reveal_buffer + di], ' '
+    inc di
+    mov byte ptr [reveal_buffer + di], '$'
+
+    mov ah, 09h
+    lea dx, reveal_buffer
+    int 21h
+
+    mov dl, 13
+    mov ah, 02h
+    int 21h
+    mov dl, 10
+    int 21h
+
+    call delay_short
+
+player_skip_card:
+    inc si
+    jmp player_next_card
+
+player_reveal_done:
+    pop di si dx cx bx ax
     ret
 reveal_played_cards endp
 
 reveal_ai_cards proc
-    push ax
-    push bx
-    push cx
-    push dx
-    push si
-    
+    push ax bx cx dx si di
+
     mov ah, 09h
     lea dx, msg_truth_reveal
     int 21h
-    
+
+    xor si, si
+    xor di, di
     mov bx, offset card_symbols
-    mov si, 0
-    mov cl, ai_claim_count  ; Only show claimed number of cards
-    mov ch, 0
-reveal_loop:
-    ; Find next non-empty card
+
+ai_next_card:
     cmp si, 5
-    jae reveal_done
-    cmp [ai_hand + si], 255
-    je skip_reveal
-    
-    ; Show actual card
-    mov al, [ai_hand + si]
-    xlat                     ; Convert to symbol
+    jae ai_reveal_done
+
+    mov al, [ai_played_cards + si]
+    cmp al, 255
+    je ai_skip_card
+
+    xlat
     mov [card_template + 1], al
-    
-    push dx
-    lea dx, card_template    ; "[X] "
+
+    lea dx, card_template
+    mov cx, 0
+copy_card_ai:
+    mov bx, cx
+    mov al, [si + bx]
+    mov [reveal_buffer + di], al
+    inc cx
+    inc di
+    cmp al, '$'
+    jne copy_card_ai
+
+    mov byte ptr [reveal_buffer + di], ' '
+    inc di
+    mov byte ptr [reveal_buffer + di], '$'
+
     mov ah, 09h
+    lea dx, reveal_buffer
     int 21h
-    pop dx
-    
-    dec cl                   ; Count down shown cards
-    jz reveal_done
-    
-skip_reveal:
+
+    mov dl, 13
+    mov ah, 02h
+    int 21h
+    mov dl, 10
+    int 21h
+
+    call delay_short
+
+ai_skip_card:
     inc si
-    jmp reveal_loop
-    
-reveal_done:
-    pop si
-    pop dx
-    pop cx
-    pop bx
-    pop ax
+    jmp ai_next_card
+
+ai_reveal_done:
+    pop di si dx cx bx ax
     ret
 reveal_ai_cards endp
+
+delay_short proc
+    push cx
+    mov cx, 5000
+delay_loop:
+    nop
+    loop delay_loop
+    pop cx
+    ret
+delay_short endp
+
 
 ; === CARD VERIFICATION ===
 verify_player_claim proc
