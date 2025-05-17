@@ -1101,29 +1101,35 @@ ai_roulette_done:
 ai_roulette endp
 
 
-
+;Display the count of Russian Roulette
 show_roulette_status proc
     push ax
     push dx
 
-    ; Player (X/6)
+    ; Ensure DS is correct
+    mov ax, @data
+    mov ds, ax
+
+    ; Print player roulette count
     mov ah, 09h
     lea dx, msg_player_roulette_count
     int 21h
-    mov dl, player_roulette_counter
-    add dl, '0'
+    mov al, player_roulette_counter
+    add al, '0'
+    mov dl, al
     mov ah, 02h
     int 21h
     lea dx, msg_of_six_closing
     mov ah, 09h
     int 21h
 
-    ; AI     (Y/6)
+    ; Print AI roulette count
     mov ah, 09h
     lea dx, msg_ai_roulette_count
     int 21h
-    mov dl, ai_roulette_counter
-    add dl, '0'
+    mov al, ai_roulette_counter
+    add al, '0'
+    mov dl, al
     mov ah, 02h
     int 21h
     lea dx, msg_of_six_closing
@@ -1134,7 +1140,6 @@ show_roulette_status proc
     pop ax
     ret
 show_roulette_status endp
-
 
 ; ==========================================
 
