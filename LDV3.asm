@@ -787,9 +787,12 @@ verify_loop:
     cmp [selected_cards + si], 1
     jne skip_verify
     mov al, [player_hand + si]
+    cmp al, 3
+    je skip_verify
     cmp al, table_type
     jne player_lied
 skip_verify:
+    
     inc si
     loop verify_loop
 
@@ -840,6 +843,8 @@ check_played_cards:
 
     ; Compare played card to table type
     mov al, [ai_played_cards + si]
+    cmp al, 3
+    je card_matches
     cmp al, table_type
     je card_matches
 
