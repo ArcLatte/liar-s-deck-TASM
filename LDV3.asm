@@ -26,42 +26,46 @@
     roulette_chamber_size   equ 6
 
     ; Strings
-    kings_str     db 'Kings $'
-    queens_str    db 'Queens$'
-    aces_str      db 'Aces  $'
+    kings_str     db ' Kings $'
+    queens_str    db ' Queens$'
+    aces_str      db ' Aces  $'
     card_symbols  db 'KQAJ'    ; 0=K, 1=Q, 2=A, 3=J
     card_template db '[ ] $'
     msg_empty     db '[X] $'
 
     ; Messages
-    msg_welcome   db 'LIAR',39,'S BAR',13,10,'$'
-    msg_table     db 13,10,'Table Type: $'
-    msg_player    db 13,10,'Your hand: $'
-    msg_ai        db 13,10,'AI hand:   $'
-    msg_choose    db 13,10,'Select cards (1-5, comma separated): $'
-    msg_play      db 13,10,'You played: $'
-    msg_claim     db 13,10,'Claim: $'
-    msg_ai_claim  db 13,10,'AI claims: $'
-    msg_ai_plays  db 13,10,'AI plays: $'
-    msg_truth_reveal db 13,10,'Revealed cards: $'
-    msg_invalid   db 13,10,'Invalid input! Use format like "1,3,5"$'
-    msg_prompt    db 13,10,13,10,'Press any key to continue...$'
-    msg_ai_playing db 13,10,'AI is playing cards...$'
-    msg_ai_lied    db ' AI was bluffing!$'
-    msg_player_lied db ' You were bluffing!$'
+    msg_welcome         db 'LIAR',39,'S BAR',13,10,'$'
+    msg_table           db 13,10,'Table Type: $'
+    msg_player          db 13,10,'Your hand  : $'
+    msg_ai              db 13,10,'Giorno hand: $'
+    msg_choose          db 13,10,'Select cards (1-5, comma separated): $'
+    msg_invalid         db 13,10,'Invalid input! Use format like "1,3,5"$'
+    msg_play            db 13,10,'You play: $'
+    msg_claim           db 13,10,'You Claim: $'
+    msg_ai_claim        db 'Giorno claims: $'
+    msg_ai_plays        db 13,10,'Giorno plays: $'
+    msg_truth_reveal    db 13,10,'Revealed cards: $'
+    msg_prompt          db 13,10,13,10,'Press any key to continue...$'
+    msg_ai_playing      db 13,10,13,10,'Giorno is playing cards...$'
+   
+    msg_player_lied         db 'Player attempted to deceive. Russian roulette begins...', 13, 10, '$'
+    msg_ai_lied             db 13,10,'Giorno lied. Spinning the chamber...', 13, 10, '$'
+    msg_player_wrong_accuse db 'Player falsely accused. Time to pay...', 13, 10, '$'
+    msg_ai_wrong_accuse     db 'AI misjudged the player. Facing the risk...', 13, 10, '$'
+    
     msg_challenge_prompt db 13,10,'Call liar? (Y/N): $'
-    msg_liar       db 13,10,'AI calls "LIAR!"$'
+    msg_liar       db 13,10,'Giorno: LIAR!$'
     msg_auto_challenge db 13,10,'HAND EMPTY! Automatic challenge!',13,10,'$'
-    msg_ai_forced_challenge db 'AI is forced to call LIAR!',13,10,'$'
+    msg_ai_forced_challenge db 'Giorno is forced to call LIAR!',13,10,'$'
     msg_player_forced_challenge db 'You must call LIAR!',13,10,'$'
-    msg_roulette   db 13,10,'RUSSIAN ROULETTE! Trigger #$'
-    msg_bang       db ' BANG! Game over.$'
-    msg_click      db ' *CLICK*$'
+    msg_roulette   db 13,10,13,10,'RUSSIAN ROULETTE! Trigger #$'
+    msg_bang       db 13,10,' BANG! Game over.$'
+    msg_click      db 13,10,' *CLICK*$'
     ai_hidden_card db '[?] $'
     msg_player_wins db ' You win! AI lost the Russian Roulette.$'
     
     msg_player_roulette_count db 13, 10, 'Player (', '$'
-    msg_ai_roulette_count     db 'AI     (', '$'
+    msg_ai_roulette_count     db 'Giorno (', '$'
     msg_of_six_closing        db '/6)', 13, 10, '$'
 
     
@@ -78,7 +82,7 @@
     msg_debug_played_cards db "Saved AI Played Cards: $"
     msg_start db 'Game starting...', 13, 10, '$'
     msg_init_done db 'Roulette initialized!', 13, 10, '$'
-    debug_roulette_entered db '>>> Entered show_roulette_status <<<', 13, 10, '$'
+
 
 
 
@@ -299,11 +303,7 @@ player_multi_turn proc
     push si
     push di
 
-    ;call clear_screen
-    ;call show_table_type
-    ;call display_hands
-
-    ; Clear previous selections
+input_loop:
     mov cx, 5
     mov si, 0
 clear_selection:
@@ -311,8 +311,7 @@ clear_selection:
     inc si
     loop clear_selection
 
-input_loop:
-    ; Show input prompt
+    ;prompt player choice
     mov ah, 09h
     lea dx, msg_choose
     int 21h
@@ -400,18 +399,35 @@ skip_display:
 
     ; Automatic claim
     mov ah, 09h
-    lea dx, msg_claim
+    lea dx, msg_claim      ; "Player claims: "
     int 21h
-    mov dl, cl          ; Number of cards played
+
+    mov dl, cl             ; cl = number of cards
     add dl, '0'
     mov ah, 02h
     int 21h
-    mov dl, ' '
-    int 21h
-    mov bx, offset card_symbols
+
+
+    ; Show type based on table_type
     mov al, table_type
-    xlat
-    mov ah, 02h
+    cmp al, 0
+    je claim_kings
+    cmp al, 1
+    je claim_queens
+
+    ; Default ? Aces
+    lea dx, aces_str
+    jmp show_claim_type
+
+claim_kings:
+    lea dx, kings_str
+    jmp show_claim_type
+
+claim_queens:
+    lea dx, queens_str
+
+show_claim_type:
+    mov ah, 09h
     int 21h
 
     ; Check if player's hand is empty
@@ -462,7 +478,6 @@ hand_not_empty:
     jmp turn_complete
 
 no_challenge:
-    ; AI did not challenge ? still remove selected cards
     call remove_selected_cards
     jmp turn_complete
 jump_to_game_round:
@@ -646,7 +661,7 @@ reveal_played_cards proc
     push si
     
     mov ah, 09h
-    lea dx, msg_truth_reveal  ; "Revealed cards: "
+    lea dx, msg_truth_reveal
     int 21h
     
     mov bx, offset card_symbols
@@ -663,7 +678,7 @@ show_played:
     mov [card_template + 1], al   ; Update display template
     
     push dx
-    lea dx, card_template         ; "[X] "
+    lea dx, card_template
     mov ah, 09h
     int 21h
     pop dx
@@ -798,7 +813,7 @@ skip_verify:
 
     ; All cards matched
     mov ah, 09h
-    lea dx, msg_ai_lied
+    lea dx, msg_ai_wrong_accuse
     int 21h
     call ai_roulette  ; AI was wrong
     mov new_round_flag, 1
@@ -869,7 +884,7 @@ check_results:
 ai_truthful:
     ; All claimed cards matched
     mov ah, 09h
-    lea dx, msg_player_lied
+    lea dx, msg_player_wrong_accuse
     int 21h
     call player_roulette
     mov new_round_flag, 1
@@ -1267,6 +1282,7 @@ ai_challenge_end:   ; Changed from challenge_done
     ret
 ai_challenge endp
 
+;Promt Player to challenge
 prompt_challenge proc
     push dx
     
