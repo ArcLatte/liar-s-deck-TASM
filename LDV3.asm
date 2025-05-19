@@ -40,7 +40,7 @@
     msg_player          db 13,10,'Your hand  : $'
     msg_ai              db 13,10,'Giorno hand: $'
     msg_choose          db 13,10,'Select cards (1-5, comma separated): $'
-    msg_invalid         db 13,10,'Invalid input! Use format like "1,3,5"$'
+    msg_invalid         db 13,10,'Invalid input! Use format like "1,3,5", max 3 cards$'
     
     msg_play            db 13,10,'You play: $'
     msg_claim           db 13,10,'You Claim: $'
@@ -51,10 +51,10 @@
     msg_prompt          db 13,10,13,10,'Press any key to continue...$'
     msg_ai_playing      db 13,10,13,10,'Giorno is playing cards...$'
    
-    msg_player_lied             db 'Player lied. Time to face the chamber...', 13, 10, '$'
+    msg_player_lied             db 13,10,'Player lied. Time to face the chamber...', 13, 10, '$'
     msg_ai_lied                 db 13,10,'Giorno lied. Time to pull the trigger...', 13, 10, '$'
     msg_player_wrong_accuse     db 13,10,'Player misjudge. Time to pay...', 13, 10, '$'
-    msg_ai_wrong_accuse         db 'Giorno misjudged. Facing the barrel...', 13, 10, '$'
+    msg_ai_wrong_accuse         db 13,10,'Giorno misjudged. Facing the barrel...', 13, 10, '$'
     
     msg_challenge_prompt        db 13,10,'Call liar? (Y/N): $'
     msg_player_liar             db 13,10,'You: LIAR!$'
@@ -62,7 +62,7 @@
     
     msg_auto_challenge          db 13,10,'HAND EMPTY! Automatic challenge!',13,10,'$'
     msg_ai_forced_challenge     db 'Giorno is forced to call LIAR!',13,10,'$'
-    msg_player_forced_challenge db 'You must call LIAR!',13,10,'$'
+    msg_player_forced_challenge db 13,10,'You must call LIAR!',13,10,'$'
     
     msg_roulette                db 13,10,'RUSSIAN ROULETTE! Trigger #$'
     msg_pull_trigger            db 13,10,'Pulling the trigger$'
@@ -364,6 +364,11 @@ end_of_input:
     ; Must select at least one card
     cmp cx, 0
     je input_error
+    
+    ; Limit to max 3 cards selected
+    cmp cx, 4
+    jae input_error
+
 
     ; Display played cards
     mov ah, 09h
@@ -777,31 +782,6 @@ verify_player_claim proc
     
     mov new_round_flag, 0 ;reset new round flag
 
-    mov cx, 5
-    mov si, 0
-print_selected_loop:
-    cmp [selected_cards + si], 1
-    jne skip_print
-
-    mov al, [player_hand + si]
-    add al, '0'
-    mov dl, al
-    mov ah, 02h
-    int 21h
-
-    mov dl, ' '
-    int 21h
-
-skip_print:
-    inc si
-    loop print_selected_loop
-
-    ; Newline after values
-    mov ah, 02h
-    mov dl, 13
-    int 21h
-    mov dl, 10
-    int 21h
 
     ; --- Verify ALL played cards match table_type ---
     mov cx, 5
