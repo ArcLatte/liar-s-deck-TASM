@@ -3,20 +3,20 @@
 
 .data
     ; Card deck (6K, 6Q, 6A, 2J)
-    deck                db 0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3  
-    deck_size           equ 20
+    deck          db 0,0,0,0,0,0, 1,1,1,1,1,1, 2,2,2,2,2,2, 3,3  
+    deck_size     equ 20
 
     ; Game state
-    table_type          db ?    ; 0=Kings, 1=Queens, 2=Aces
-    seed                db 0
-    player_hand         db 5 dup(?)
-    ai_hand             db 5 dup(?)
-    selected_cards      db 5 dup(0)
-    ai_played_cards     db 5 dup(255)
-    input_buffer        db 10 dup(?)
-    empty_slot          db 255
-    roulette_counter    db 0
-    ai_claim_count      db ?
+    table_type    db ?          ; 0=Kings, 1=Queens, 2=Aces
+    seed          db 0
+    player_hand   db 5 dup(?)
+    ai_hand       db 5 dup(?)
+    selected_cards db 5 dup(0)
+    ai_played_cards db 5 dup(255)
+    input_buffer  db 10 dup(?)
+    empty_slot    db 255
+    roulette_counter db 0
+    ai_claim_count db ?
     
     ; Russian Roulette 
     player_roulette_counter db 0
@@ -25,14 +25,13 @@
     ai_bullet_position      db ?
     roulette_chamber_size   equ 6
 
-    ; Card Related Strings
-    kings_str       db ' Kings $'
-    queens_str      db ' Queens$'
-    aces_str        db ' Aces  $'
-    card_symbols    db 'KQAJ'    ; 0=K, 1=Q, 2=A, 3=J
-    card_template   db '[ ] $'
-    msg_empty       db '[X] $'
-    ai_hidden_card  db '[?] $'
+    ; Strings
+    kings_str     db ' Kings $'
+    queens_str    db ' Queens$'
+    aces_str      db ' Aces  $'
+    card_symbols  db 'KQAJ'    ; 0=K, 1=Q, 2=A, 3=J
+    card_template db '[ ] $'
+    msg_empty     db '[X] $'
 
     ; Messages
     msg_welcome         db 'LIAR',39,'S BAR',13,10,'$'
@@ -41,7 +40,6 @@
     msg_ai              db 13,10,'Giorno hand: $'
     msg_choose          db 13,10,'Select cards (1-5, comma separated): $'
     msg_invalid         db 13,10,'Invalid input! Use format like "1,3,5"$'
-    
     msg_play            db 13,10,'You play: $'
     msg_claim           db 13,10,'You Claim: $'
     msg_ai_claim        db 'Giorno claims: $'
@@ -51,36 +49,44 @@
     msg_prompt          db 13,10,13,10,'Press any key to continue...$'
     msg_ai_playing      db 13,10,13,10,'Giorno is playing cards...$'
    
-    msg_player_lied             db 'Player lied. Time to face the chamber...', 13, 10, '$'
-    msg_ai_lied                 db 13,10,'Giorno lied. Time to pull the trigger...', 13, 10, '$'
-    msg_player_wrong_accuse     db 13,10,'Player misjudge. Time to pay...', 13, 10, '$'
-    msg_ai_wrong_accuse         db 'Giorno misjudged. Facing the barrel...', 13, 10, '$'
+    msg_player_lied         db 'Player attempted to deceive. Russian roulette begins...', 13, 10, '$'
+    msg_ai_lied             db 13,10,'Giorno lied. Spinning the chamber...', 13, 10, '$'
+    msg_player_wrong_accuse db 13,10,'Player falsely accused. Time to pay...', 13, 10, '$'
+    msg_ai_wrong_accuse     db 'AI misjudged the player. Facing the risk...', 13, 10, '$'
     
-    msg_challenge_prompt        db 13,10,'Call liar? (Y/N): $'
-    msg_player_liar             db 13,10,'You: LIAR!$'
-    msg_ai_liar                 db 13,10,13,10,'Giorno: LIAR!$'
-    
-    msg_auto_challenge          db 13,10,'HAND EMPTY! Automatic challenge!',13,10,'$'
-    msg_ai_forced_challenge     db 'Giorno is forced to call LIAR!',13,10,'$'
+    msg_challenge_prompt db 13,10,'Call liar? (Y/N): $'
+    msg_player_liar db 13,10,'You: LIAR!$'
+    msg_ai_liar       db 13,10,13,10,'Giorno: LIAR!$'
+    msg_auto_challenge db 13,10,'HAND EMPTY! Automatic challenge!',13,10,'$'
+    msg_ai_forced_challenge db 'Giorno is forced to call LIAR!',13,10,'$'
     msg_player_forced_challenge db 'You must call LIAR!',13,10,'$'
+    msg_roulette   db 13,10,'RUSSIAN ROULETTE! Trigger #$'
+    msg_pull_trigger db 13,10,'Pulling the trigger$'
+    msg_bang       db 13,10,' BANG! Game over.$'
+    msg_click      db 13,10,' *CLICK*$'
+    ai_hidden_card db '[?] $'
+    msg_player_wins db ' You win! AI lost the Russian Roulette.$'
     
-    msg_roulette                db 13,10,'RUSSIAN ROULETTE! Trigger #$'
-    msg_pull_trigger            db 13,10,'Pulling the trigger$'
-    msg_bang                    db 13,10,'BANG! Game over.$'
-    msg_click                   db 13,10,'*CLICK*$'
-    msg_player_wins             db ' You win! Giorno lost the Russian Roulette.$'
+    msg_player_roulette_count db 13, 10, 'Player (', '$'
+    msg_ai_roulette_count     db 'Giorno (', '$'
+    msg_of_six_closing        db '/6)', 13, 10, '$'
     
-    ;Roulette Status
-    msg_player_roulette_count   db 13, 10, 'Player (', '$'
-    msg_ai_roulette_count       db 'Giorno (', '$'
-    msg_of_six_closing          db '/6)', 13, 10, '$'
+    reveal_buffer db 80 dup('$')        ; Display buffer
+
     
     ;Flag
     new_round_flag db 0
     challenge_flag db 0
+
     
-    ;Debug
-    ;msg_debug_played_cards db "Saved AI Played Cards: $"
+    ;Debug only
+    msg_debug_played_cards db "Saved AI Played Cards: $"
+    msg_start db 'Game starting...', 13, 10, '$'
+    msg_init_done db 'Roulette initialized!', 13, 10, '$'
+
+
+
+
 
 
 .code
@@ -102,10 +108,14 @@ round_turns:
     mov ax, @data
     mov ds, ax
     call clear_screen
+    ; debuging......
     mov ah, 09h
     lea dx, msg_welcome
     int 21h
     call show_roulette_status
+        
+    
+    ; debuging ends...
     call show_table_type
     call display_hands
     
@@ -121,7 +131,6 @@ round_turns:
     cmp ax, 1
     je game_round
     
-    ; Check for new round
     cmp new_round_flag, 1
     je skip_prompt
     
@@ -147,11 +156,12 @@ select_table_type proc
     push ax
     push dx
     
-    ; Get system time
+    ; Get system time (more random than timer ticks)
     mov ah, 2Ch
     int 21h        ; DH=seconds, DL=1/100 seconds
     
-    mov al, dl     
+    ; Use milliseconds for better randomness
+    mov al, dl
     xor ah, ah
     mov dl, 3
     div dl         ; AH=remainder (0-2)
@@ -563,40 +573,20 @@ show_hidden:
     mov dl, 10
     int 21h
 
+    ; Display claim
     mov ah, 09h
     lea dx, msg_ai_claim
     int 21h
-
-    ; Print number
     mov dl, ai_claim_count
     add dl, '0'
     mov ah, 02h
     int 21h
-
-    ; Space before card type
     mov dl, ' '
     int 21h
-
-    ; Print full card type string based on table_type
+    mov bx, offset card_symbols
     mov al, table_type
-    cmp al, 0
-    je ai_show_kings
-    cmp al, 1
-    je ai_show_queens
-
-    ; Default to aces
-    lea dx, aces_str
-    jmp ai_claim_type_done
-
-ai_show_kings:
-    lea dx, kings_str
-    jmp ai_claim_type_done
-
-ai_show_queens:
-    lea dx, queens_str
-
-ai_claim_type_done:
-    mov ah, 09h
+    xlat
+    mov ah, 02h
     int 21h
 
     ; === Check if AI will be empty after playing
@@ -953,37 +943,40 @@ skip_copy:
     jb copy_loop
 
 after_copy_loop:
-    ; === DEBUG BLOCK COMMENTED OUT ===
-    ;mov ah, 09h
-    ;lea dx, msg_debug_played_cards
-    ;int 21h
+    ; === DEBUG: Print saved played cards ===
+    mov ah, 09h
+    lea dx, msg_debug_played_cards  ; db "Saved AI Played Cards: $" in .data
+    int 21h
 
-    ;mov si, 0
-;debug_loop:
-    ;cmp si, 5
-    ;je debug_done
-    ;mov al, [ai_played_cards + si]
-    ;cmp al, 255
-    ;je skip_debug
+    mov si, 0
+debug_loop:
+    cmp si, 5
+    je debug_done
+    mov al, [ai_played_cards + si]
+    cmp al, 255
+    je skip_debug
 
-    ;add al, '0'
-    ;mov dl, al
-    ;mov ah, 02h
-    ;int 21h
+    ; Convert to ASCII and print
+    add al, '0'
+    mov dl, al
+    mov ah, 02h
+    int 21h
 
-    ;mov dl, ' '
-    ;int 21h
+    ; Add space
+    mov dl, ' '
+    int 21h
 
-;skip_debug:
-    ;inc si
-    ;jmp debug_loop
+skip_debug:
+    inc si
+    jmp debug_loop
 
-;debug_done:
-    ;mov ah, 02h
-    ;mov dl, 13
-    ;int 21h
-    ;mov dl, 10
-    ;int 21h
+debug_done:
+    ; Newline
+    mov ah, 02h
+    mov dl, 13
+    int 21h
+    mov dl, 10
+    int 21h
 
 done_copy:
     pop di
