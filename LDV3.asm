@@ -426,7 +426,6 @@ show_claim_type:
     mov ah, 09h
     int 21h
 
-    ; Check if player's hand is empty
     ; Check if player's hand will be empty AFTER removing selected cards
     mov cx, 5
     mov si, 0
@@ -933,37 +932,6 @@ skip_copy:
     jb copy_loop
 
 after_copy_loop:
-    ; === DEBUG BLOCK COMMENTED OUT ===
-    ;mov ah, 09h
-    ;lea dx, msg_debug_played_cards
-    ;int 21h
-
-    ;mov si, 0
-;debug_loop:
-    ;cmp si, 5
-    ;je debug_done
-    ;mov al, [ai_played_cards + si]
-    ;cmp al, 255
-    ;je skip_debug
-
-    ;add al, '0'
-    ;mov dl, al
-    ;mov ah, 02h
-    ;int 21h
-
-    ;mov dl, ' '
-    ;int 21h
-
-;skip_debug:
-    ;inc si
-    ;jmp debug_loop
-
-;debug_done:
-    ;mov ah, 02h
-    ;mov dl, 13
-    ;int 21h
-    ;mov dl, 10
-    ;int 21h
 
 done_copy:
     pop di
@@ -1389,6 +1357,5 @@ hands_done:
     pop cx
     ret
 check_hands_empty endp
-
 
 end main
